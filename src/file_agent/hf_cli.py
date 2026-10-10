@@ -1,0 +1,436 @@
+import argparse
+import hashlib
+import json
+import logging
+import math
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from datasets import Dataset
+from dotenv import load_dotenv
+
+from file_agent.hf_batch import (
+    BatchGenerationResult,
+    build_generation_parameters,
+    generate_hf_qa_records,
+)
+from file_agent.hf_dataset import QADatasetRecord, load_qa_dataset
+from file_agent.hf_output import GeneratedDatasetArtifacts, save_generated_qa_dataset
+from file_agent.llm.base import LLMClient
+from file_agent.llm.factory import DEFAULT_MAX_TOKENS, create_llm_client
+from file_agent.rag import resolve_max_tool_rounds, resolve_rag_mode
+from file_agent.vlm.factory import create_vlm_client
+
+MANIFEST_SCHEMA_VERSION = 3
+MANIFEST_FILE_NAME = "run_manifest.json"
+FINAL_ARTIFACT_NAMES = ("answers.parquet", "hf_dataset", MANIFEST_FILE_NAME)
+LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class HFGenerationConfig:
+    dataset_id: str
+    output_dir: Path
+    config_name: str | None = None
+    split: str = "train"
+    revision: str | None = None
+    cache_dir: Path | None = None
+    env_file: Path = Path(".env")
+    top_k: int = 5
+    max_chars: int = 1000
+    overlap: int = 100
+    limit: int | None = None
+    record_ids: tuple[str, ...] = ()
+    resume: bool = False
+    continue_on_error: bool = False
+    record_timeout: float | None = None
+    rag_mode: str | None = None
+    max_tool_rounds: int | None = None
+    temperature: float = 0.0
+    max_tokens: int = DEFAULT_MAX_TOKENS
+
+    def __post_init__(self) -> None:
+        _require_non_empty(self.dataset_id, "dataset_id")
+        _require_non_empty(self.split, "split")
+        if self.config_name is not None:
+            _require_non_empty(self.config_name, "config_name")
+        if self.revision is not None:
+            _require_non_empty(self.revision, "revision")
+        if self.top_k <= 0:
+            raise ValueError("top_k must be greater than 0")
+        if self.max_chars <= 0:
+            raise ValueError("max_chars must be greater than 0")
+        if self.overlap < 0:
+            raise ValueError("overlap must be greater than or equal to 0")
+        if self.overlap >= self.max_chars:
+            raise ValueError("overlap must be smaller than max_chars")
+        if self.limit is not None and self.limit <= 0:
+            raise ValueError("limit must be greater than 0")
+        if self.limit is not None and self.record_ids:
+            raise ValueError("limit and record_ids cannot be used together")
+        if any(not record_id.strip() for record_id in self.record_ids):
+            raise ValueError("record_ids must contain only non-empty strings")
+        if len(set(self.record_ids)) != len(self.record_ids):
+            raise ValueError("record_ids must not contain duplicates")
+        if self.record_timeout is not None and self.record_timeout <= 0:
+            raise ValueError("record_timeout must be greater than 0")
+        if self.rag_mode is not None:
+            resolve_rag_mode(self.rag_mode)
+        if self.max_tool_rounds is not None:
+            resolve_max_tool_rounds(self.max_tool_rounds)
+        if not math.isfinite(self.temperature) or not 0 <= self.temperature <= 2:
+            raise ValueError("temperature must be between 0 and 2")
+        if self.max_tokens <= 0:
+            raise ValueError("max_tokens must be greater than 0")
+
+
+@dataclass(frozen=True)
+class HFGenerationRunResult:
+    batch: BatchGenerationResult
+    artifacts: GeneratedDatasetArtifacts
+    manifest_path: Path
+
+
+def run_hf_dataset_generation(
+    config: HFGenerationConfig,
+    llm_client: LLMClient | None = None,
+) -> HFGenerationRunResult:
+    """Run dataset loading, RAG generation, final export, and manifest writing."""
+    _validate_output_directory(config.output_dir)
+    load_dotenv(config.env_file, override=True)
+
+    active_llm_client = (
+        llm_client
+        if llm_client is not None
+        else create_llm_client(
+            env_file=config.env_file,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+        )
+    )
+    active_rag_mode = resolve_rag_mode(config.rag_mode)
+    active_max_tool_rounds = (
+        resolve_max_tool_rounds(config.max_tool_rounds) if active_rag_mode == "tool_agent" else None
+    )
+    active_vlm_client = create_vlm_client() if active_rag_mode == "tool_agent" else None
+    source_dataset = load_qa_dataset(
+        dataset_id=config.dataset_id,
+        config_name=config.config_name,
+        split=config.split,
+        revision=config.revision,
+        cache_dir=config.cache_dir,
+    )
+    available_rows = len(source_dataset)
+    selected_dataset = _select_rows(source_dataset, config.limit, config.record_ids)
+    if not len(selected_dataset):
+        raise ValueError("The selected dataset contains no rows")
+
+    LOGGER.info(
+        "Starting generation for %s rows from %s",
+        len(selected_dataset),
+        config.dataset_id,
+    )
+    batch_result = generate_hf_qa_records(
+        dataset=selected_dataset,
+        dataset_id=config.dataset_id,
+        llm_client=active_llm_client,
+        output_dir=config.output_dir,
+        revision=config.revision,
+        cache_dir=config.cache_dir,
+        top_k=config.top_k,
+        max_chars=config.max_chars,
+        overlap=config.overlap,
+        resume=config.resume,
+        continue_on_error=config.continue_on_error,
+        record_timeout=config.record_timeout,
+        rag_mode=active_rag_mode,
+        max_tool_rounds=active_max_tool_rounds,
+        vlm_client=active_vlm_client,
+    )
+    if batch_result.failed_count:
+        LOGGER.warning(
+            "%s of %s rows failed and were recorded as pipeline errors",
+            batch_result.failed_count,
+            batch_result.total_count,
+        )
+    artifacts = save_generated_qa_dataset(
+        source_dataset=selected_dataset,
+        records=batch_result.records,
+        output_dir=config.output_dir,
+    )
+    manifest = _build_manifest(
+        config=config,
+        dataset=selected_dataset,
+        available_rows=available_rows,
+        llm_client=active_llm_client,
+        batch_result=batch_result,
+        artifacts=artifacts,
+        rag_mode=active_rag_mode,
+        max_tool_rounds=active_max_tool_rounds,
+    )
+    manifest_path = _write_manifest(config.output_dir, manifest)
+
+    LOGGER.info("Generation complete: %s rows", batch_result.total_count)
+    return HFGenerationRunResult(
+        batch=batch_result,
+        artifacts=artifacts,
+        manifest_path=manifest_path,
+    )
+
+
+def create_argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Generate RAG answers for a Hugging Face QA dataset.",
+    )
+    parser.add_argument("--dataset-id", required=True, help="Hugging Face dataset repository")
+    parser.add_argument("--output-dir", required=True, type=Path, help="Run output directory")
+    parser.add_argument("--config-name", help="Dataset configuration name")
+    parser.add_argument("--split", default="train", help="Dataset split (default: train)")
+    parser.add_argument("--revision", help="Dataset commit or revision")
+    parser.add_argument("--cache-dir", type=Path, help="Hugging Face cache directory")
+    parser.add_argument("--env-file", type=Path, default=Path(".env"), help="LLM environment file")
+    parser.add_argument("--top-k", type=_positive_int, default=5, help="Retrieved chunks per row")
+    parser.add_argument("--max-chars", type=_positive_int, default=1000, help="Chunk size")
+    parser.add_argument("--overlap", type=_non_negative_int, default=100, help="Chunk overlap")
+    parser.add_argument("--limit", type=_positive_int, help="Process only the first N rows")
+    parser.add_argument(
+        "--record-id",
+        dest="record_ids",
+        action="append",
+        default=[],
+        help="Process one exact dataset row ID; repeat to select multiple rows",
+    )
+    parser.add_argument("--resume", action="store_true", help="Reuse matching row checkpoints")
+    parser.add_argument(
+        "--rag-mode",
+        choices=("standard", "tool_agent"),
+        help="RAG orchestration mode (default: RAG_MODE or standard)",
+    )
+    parser.add_argument(
+        "--max-tool-rounds",
+        type=_positive_int,
+        help="Maximum tool-agent rounds (default: RAG_MAX_TOOL_ROUNDS or 4)",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        help="Answer-model temperature (default: 0)",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=_positive_int,
+        default=DEFAULT_MAX_TOKENS,
+        help=f"Maximum answer tokens (default: {DEFAULT_MAX_TOKENS})",
+    )
+    parser.add_argument(
+        "--continue-on-error",
+        action="store_true",
+        help="Record rows that fail (parser crash, LLM outage, timeout) as pipeline errors "
+        "and keep going instead of aborting the run",
+    )
+    parser.add_argument(
+        "--record-timeout",
+        type=float,
+        help="Abort a single row after this many seconds (Linux/macOS); with "
+        "--continue-on-error the row is recorded as a pipeline error",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        default="INFO",
+        help="Logging verbosity (default: INFO)",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = create_argument_parser()
+    args = parser.parse_args(argv)
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    try:
+        config = HFGenerationConfig(
+            dataset_id=args.dataset_id,
+            output_dir=args.output_dir,
+            config_name=args.config_name,
+            split=args.split,
+            revision=args.revision,
+            cache_dir=args.cache_dir,
+            env_file=args.env_file,
+            top_k=args.top_k,
+            max_chars=args.max_chars,
+            overlap=args.overlap,
+            limit=args.limit,
+            record_ids=tuple(args.record_ids),
+            resume=args.resume,
+            continue_on_error=args.continue_on_error,
+            record_timeout=args.record_timeout,
+            rag_mode=args.rag_mode,
+            max_tool_rounds=args.max_tool_rounds,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    result = run_hf_dataset_generation(config)
+    print(
+        f"Completed {result.batch.total_count} rows "
+        f"(processed: {result.batch.processed_count}, resumed: {result.batch.resumed_count})"
+    )
+    print(f"Parquet: {result.artifacts.parquet_path}")
+    print(f"Hugging Face dataset: {result.artifacts.hf_dataset_path}")
+    print(f"Manifest: {result.manifest_path}")
+    return 0
+
+
+def _select_rows(
+    dataset: Dataset,
+    limit: int | None,
+    record_ids: Sequence[str] = (),
+) -> Dataset:
+    if record_ids:
+        positions = {record_id: index for index, record_id in enumerate(dataset["id"])}
+        missing = [record_id for record_id in record_ids if record_id not in positions]
+        if missing:
+            raise ValueError(f"Dataset does not contain record IDs: {', '.join(missing)}")
+        return dataset.select([positions[record_id] for record_id in record_ids])
+    if limit is None or limit >= len(dataset):
+        return dataset
+    return dataset.select(range(limit))
+
+
+def _validate_output_directory(output_dir: Path) -> None:
+    if output_dir.exists() and not output_dir.is_dir():
+        raise ValueError(f"output_dir is not a directory: {output_dir}")
+
+    existing_paths = [output_dir / name for name in FINAL_ARTIFACT_NAMES]
+    existing_paths = [path for path in existing_paths if path.exists()]
+    if existing_paths:
+        names = ", ".join(path.name for path in existing_paths)
+        raise FileExistsError(
+            f"Final output artifacts already exist ({names}); use a new output directory"
+        )
+
+
+def _build_manifest(
+    config: HFGenerationConfig,
+    dataset: Dataset,
+    available_rows: int,
+    llm_client: LLMClient,
+    batch_result: BatchGenerationResult,
+    artifacts: GeneratedDatasetArtifacts,
+    rag_mode: str,
+    max_tool_rounds: int | None,
+) -> dict[str, Any]:
+    generation_parameters = build_generation_parameters(
+        dataset_id=config.dataset_id,
+        revision=config.revision,
+        llm_client=llm_client,
+        retriever=None,
+        top_k=config.top_k,
+        max_chars=config.max_chars,
+        overlap=config.overlap,
+        rag_mode=rag_mode,
+        max_tool_rounds=max_tool_rounds,
+    )
+    return {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "created_at_utc": _utc_timestamp(),
+        "dataset": {
+            "id": config.dataset_id,
+            "config_name": config.config_name,
+            "split": config.split,
+            "revision": config.revision,
+            "available_rows": available_rows,
+            "selected_rows": len(dataset),
+            "limit": config.limit,
+            "record_ids": list(config.record_ids),
+            "records_sha256": _dataset_records_sha256(dataset),
+        },
+        "generation": {
+            **generation_parameters,
+            "resume_requested": config.resume,
+        },
+        "result": {
+            "total_count": batch_result.total_count,
+            "processed_count": batch_result.processed_count,
+            "resumed_count": batch_result.resumed_count,
+            "failed_count": batch_result.failed_count,
+        },
+        "artifacts": {
+            "parquet": artifacts.parquet_path.name,
+            "hf_dataset": artifacts.hf_dataset_path.name,
+        },
+    }
+
+
+def _write_manifest(output_dir: Path, manifest: dict[str, Any]) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = output_dir / MANIFEST_FILE_NAME
+    if manifest_path.exists():
+        raise FileExistsError(f"Manifest already exists: {manifest_path}")
+
+    temporary_path = manifest_path.with_suffix(".json.tmp")
+    temporary_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    temporary_path.replace(manifest_path)
+    return manifest_path
+
+
+def _dataset_records_sha256(dataset: Dataset) -> str:
+    digest = hashlib.sha256()
+    for row_index, row in enumerate(dataset):
+        record = QADatasetRecord.from_row(row, row_index=row_index)
+        value = {
+            "id": record.id,
+            "question": record.question,
+            "answer": record.answer,
+            "doc_ids": list(record.doc_ids),
+        }
+        digest.update(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        )
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return parsed
+
+
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be greater than or equal to 0")
+    return parsed
+
+
+def _require_non_empty(value: str, field_name: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
