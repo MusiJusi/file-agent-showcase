@@ -1,8 +1,7 @@
 # DocBench generation
 
-`generate_docbench.py` runs the file agent over a local checkout of
-[Anni-Zou/DocBench](https://github.com/Anni-Zou/DocBench). It expects the official
-directory layout:
+The runner processes a local [DocBench checkout](https://github.com/Anni-Zou/DocBench).
+It discovers questions from numeric document folders:
 
 ```text
 DocBench/data/
@@ -12,118 +11,75 @@ DocBench/data/
   1/
     <document>.pdf
     1_qa.jsonl
-  ...
 ```
 
-The official release contains 229 documents and 1,102 questions. The runner
-discovers them locally and never sends the reference answer, evidence, question
-type, or domain to the file agent. Those fields are copied only to the output so
-the generated answer can be evaluated later.
+Implementation: `src/file_agent/benchmarks/docbench/`.
 
-## What the runner does
+## Execution policy
 
-- parses, chunks, and indexes each PDF once, then reuses that in-memory index for
-  every selected question belonging to the document;
-- keeps questions stateless (no answer or conversation leaks into the next row);
-- enables the agent's evidence and visual-document tools in `tool_agent` mode;
-- saves one atomic JSON checkpoint after every successful answer;
-- records a failed row and continues with the rest of the benchmark by default;
-- validates the model, RAG, parsing, retrieval, prompt, source PDF, and question
-  fields before reusing a checkpoint;
-- exports answer-only and amortized parse/index latency, token usage, tool calls,
-  retrieved contexts, domains, and raw DocBench question types.
+The runner parses and indexes each PDF once for all selected questions in that
+folder. Questions are stateless. Reference answers, evidence annotations,
+question types, and domains are copied to outputs for evaluation, not sent to
+the answering agent.
 
-## PowerShell pilot
+Successful answers are checkpointed atomically. Failed questions are recorded
+and processing continues by default; `--fail-fast` changes that policy.
+Resume validates model, prompt, parsing/retrieval configuration, source PDF, and
+question fields before reusing a checkpoint.
 
-Run this from the repository root after configuring `.env` and, when Qwen is on
-the remote server, opening the SSH tunnel in a separate PowerShell window:
+## Pilot
 
-```powershell
-$python = ".\.venv\Scripts\python.exe"
-$data = "D:\Datasets\DocBench\data"
-$out = "D:\file-agent-local\docbench\qwen35-agent-pilot"
+Configure [the model endpoint](local_inference.md), then run from the repository
+root. Replace `data/DocBench/data` with your own dataset directory:
 
-& $python .\generate_docbench.py `
-  --data-dir $data `
-  --output-dir $out `
-  --env-file .env `
-  --rag-mode tool_agent `
-  --max-tool-rounds 6 `
-  --top-k 8 `
-  --max-tokens 2500 `
-  --folder-id 0 `
+```bash
+uv run python generate_docbench.py \
+  --data-dir data/DocBench/data \
+  --output-dir runs/docbench-pilot \
+  --env-file .env \
+  --rag-mode tool_agent \
+  --max-tool-rounds 8 \
+  --top-k 5 \
+  --max-tokens 2000 \
+  --folder-id 0 \
   --limit 3
 ```
 
-Use a new output directory for a different configuration. To continue an
-interrupted run, repeat the exact command and add `--resume`:
+PowerShell equivalent:
 
 ```powershell
-& $python .\generate_docbench.py `
-  --data-dir $data `
-  --output-dir $out `
-  --env-file .env `
-  --rag-mode tool_agent `
-  --max-tool-rounds 6 `
-  --top-k 8 `
-  --max-tokens 2500 `
-  --folder-id 0 `
-  --limit 3 `
-  --resume
+uv run python generate_docbench.py --data-dir data/DocBench/data --output-dir runs/docbench-pilot --env-file .env --rag-mode tool_agent --max-tool-rounds 8 --top-k 5 --max-tokens 2000 --folder-id 0 --limit 3
 ```
 
-Changing a generation parameter while keeping the same output directory is
-rejected deliberately. This prevents a single result set from silently mixing
-different models or RAG settings.
+## Full run and resume
 
-## Full run
+After inspecting the pilot, remove `--folder-id 0` and `--limit 3`, and choose
+a new directory such as `runs/docbench-full`.
 
-After inspecting the pilot, remove the selection options and use a fresh output
-directory:
+To continue after an interruption, repeat the same command with `--resume`.
+Use the original output directory and settings. A changed configuration is
+rejected to prevent mixing incomparable answers.
 
-```powershell
-$out = "D:\file-agent-local\docbench\qwen35-agent-full"
+Subset selectors include `--folder-start`, `--folder-end`, repeatable
+`--folder-id`, `--record-id`, `--domain`, `--question-type`, and `--limit`.
 
-& $python .\generate_docbench.py `
-  --data-dir $data `
-  --output-dir $out `
-  --env-file .env `
-  --rag-mode tool_agent `
-  --max-tool-rounds 6 `
-  --top-k 8 `
-  --max-tokens 2500
+```bash
+uv run python generate_docbench.py --help
 ```
-
-Useful subset options are `--folder-start`, `--folder-end`, repeatable
-`--folder-id`, repeatable `--record-id`, repeatable `--domain`, repeatable
-`--question-type`, and `--limit`. Run `python generate_docbench.py --help` for
-the complete interface.
 
 ## Outputs
 
-A complete run publishes:
+| Path | Content |
+| --- | --- |
+| `answers.parquet`, `hf_dataset/` | Answers and diagnostics |
+| `predictions.jsonl` | Lossless generation records |
+| `docbench_eval_input.jsonl` | DocBench judge-compatible records |
+| `summary.json` | Latency, usage, and failure statistics |
+| `run_manifest.json` | Selection and generation parameters |
+| `run_config.json` | Resume contract |
+| `checkpoints/` | Per-question checkpoints |
+| `generation.log` | Persistent generation log |
 
-```text
-answers.parquet                 all answers and diagnostics
-hf_dataset/                     the same rows in datasets.load_from_disk format
-predictions.jsonl               readable lossless generation records
-docbench_eval_input.jsonl       question/sys_ans/answer/evidence/type for judging
-summary.json                    aggregate latency and usage statistics
-run_manifest.json               exact run selection and generation parameters
-run_config.json                 immutable resume contract for this output directory
-generation.log                  persistent UTF-8 logs
-checkpoints/*.json              resumable answer checkpoints
-documents/*.json                per-document parsing/indexing diagnostics
-failures/*.json                 detailed errors from failed attempts
-```
-
-If one or more rows fail, the same exports are written with a `partial_` prefix,
-and `incomplete_rows.json` lists what must be retried. Final unprefixed outputs
-are published only when all selected rows have valid checkpoints. A successful
-resume removes the stale partial exports but retains the checkpoints and failure
-history directory for auditability.
-
-`docbench_eval_input.jsonl` already uses the fields expected by DocBench's judge:
-`question`, `sys_ans`, `answer`, `evidence`, and `type`. It also includes stable
-`id`, `file`, `question_index`, and `domain` fields, avoiding the original demo
-runner's fragile numbered-text parsing.
+Inspect failure counts and the selected question count rather than assuming
+every dataset checkout has the same release size. Keep these artifacts and the
+dataset out of Git; `data/` and `runs/` are ignored.

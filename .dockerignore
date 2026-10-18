@@ -6,5 +6,13 @@ __pycache__
 *.pyc
 logs/
 .env
+.env.*
+!.env.example
+runs/
+evaluations/
+reports/
+data/
+examples/
+eval_pipeline/
 tests/
 docs/

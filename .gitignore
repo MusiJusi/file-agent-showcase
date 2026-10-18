@@ -7,8 +7,7 @@ __pycache__/
 .env.*
 !.env.example
 
-data/raw/
-data/private/
+data/
 runs/
 
 .ipynb_checkpoints/
@@ -16,7 +15,13 @@ runs/
 
 *.log
 
-/scripts/
+evaluations/
+reports/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
 CLAUDE.md
 logs/
 .idea/

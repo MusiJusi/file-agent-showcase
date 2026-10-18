@@ -70,7 +70,7 @@ Users can upload one or more documents, preview extracted text, find relevant ch
   carries a parent passage window in `metadata["context"]` (the surrounding
   section, opened by its heading path), which is what the QA prompt feeds to
   the LLM (deduplicated across chunks).
-- Dense retrieval with `BAAI/bge-m3` by default (`EMBEDDING_MODEL` to change).
+- Dense retrieval with `Qwen/Qwen3-Embedding-0.6B` by default (`EMBEDDING_MODEL` to change).
 - In-memory LanceDB hybrid retrieval combining BM25 full-text search, semantic vector search, and reciprocal rank fusion (RRF).
 - A QA prompt layer (grounded, complete answers with compact source headers;
   `QA_PROMPT=v2` appends a source footer to the answer, `v1` is the original
@@ -101,7 +101,9 @@ src/file_agent/
   rag.py                      # Standard and tool-agent RAG orchestration
   rag_core.py                 # Shared ingestion and response primitives
   rag_graph.py                # LangGraph ingestion, QA, and tool-agent graphs
-  agent_tools.py              # Read-only document/evidence tools
+  agent_tools/                # Read-only tools, prompts, context, and evidence helpers
+  benchmarks/hf/              # Hugging Face dataset generation
+  benchmarks/docbench/        # DocBench dataset generation
   chat_ui.py                  # Persistent Streamlit chat state helpers
   document_assets.py          # Original-file bytes for visual analysis
   parsers/                    # Supported file parsers
@@ -118,9 +120,13 @@ src/file_agent/
   vlm/                        # VLM interface and OpenAI-compatible client
   utils/image_extractor.py    # Crop PDF page regions to images for the VLM
   llm/                        # LLM interface, adapter, and factory
-tests/                        # Pytest suite
+tests/                        # Pytest suite grouped by subsystem
+eval_pipeline/                # Independent judge project and tests
+examples/                     # Fictional documents and verifiable questions
 docs/local_inference.md       # Local LLM endpoint setup
 docs/parsing_and_chunking.md  # Parsing/chunking design and evaluation results
+docs/architecture.md          # Current contracts and module ownership
+docs/evaluation.md            # Archived agent evaluation and protocol
 ```
 
 ## Architecture rules
@@ -158,6 +164,8 @@ docs/parsing_and_chunking.md  # Parsing/chunking design and evaluation results
 - Keep agent tools read-only and expose them through `DOCUMENT_TOOLS`. Any tool
   observation used as answer evidence must also be propagated to
   `RAGResponse.sources`.
+- Add tools under `agent_tools/` and runners under `benchmarks/`. Keep the public
+  tool registry and legacy `hf_*` / `docbench_*` import aliases compatible.
 - Keep the standard and tool-agent modes backed by the same parser, chunker,
   retriever, QA metadata conventions, and `Document` objects.
 - Keep backend-specific configuration in `src/file_agent/llm/factory.py` and environment variables.

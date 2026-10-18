@@ -1,5 +1,9 @@
 # Retrieval: how a question becomes five passages
 
+> Shared-baseline research note. Its experiment labels and judge scores belong
+> to the runs described below. See [evaluation](evaluation.md) for the separate
+> 125-question agent result and its protocol.
+
 This is the companion to [parsing_and_chunking.md](parsing_and_chunking.md):
 that document ends where the chunks are indexed, this one starts there. It
 describes what `LanceDBRetriever.search()` does stage by stage, why each stage

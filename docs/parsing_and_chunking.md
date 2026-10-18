@@ -1,5 +1,10 @@
 # Parsing, chunking and OCR/VLM: design and evaluation
 
+> Shared-baseline research note. Version labels and results below describe the
+> original ingestion experiments, not the final 125-question agent evaluation.
+> See [architecture](architecture.md) and [evaluation](evaluation.md) for the
+> portfolio edition's module map and archived result.
+
 This document describes the structured ingestion pipeline (default since the
 `feat/parsing-chunking` branch), the fallbacks that keep the previous behaviour
 available, and how the changes were measured with the project's LLM-as-judge

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "description": "Sanitized aggregate of the archived agent-v6 evaluation; not a new inference run.",
+  "evaluator_version": "2",
+  "n_examples": 125,
+  "n_negative_examples_detected": 0,
+  "n_answerable_examples_detected": 125,
+  "excluded_records": [
+    {
+      "id": "q0016",
+      "reason": "suspected incorrect reference annotation"
+    },
+    {
+      "id": "q0067",
+      "reason": "suspected incorrect reference annotation"
+    }
+  ],
+  "answers_sha256": "bc7d9c1d7007319e16f38855d46714b17822717b7339183fd1588816a08c8d11",
+  "judge_model": "deepseek-v4-flash",
+  "judge_embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "metrics": {
+    "faithfulness": {
+      "mean": 0.8769,
+      "median": 1,
+      "min": 0,
+      "max": 1
+    },
+    "answer_correctness": {
+      "mean": 0.6141,
+      "median": 0.6295,
+      "min": 0.141,
+      "max": 0.9827
+    },
+    "answer_relevancy": {
+      "mean": 0.8212,
+      "median": 0.8829,
+      "min": 0,
+      "max": 1
+    },
+    "context_precision": {
+      "mean": 0.7493,
+      "median": 0.8333,
+      "min": 0,
+      "max": 1
+    },
+    "context_recall": {
+      "mean": 0.8413,
+      "median": 1,
+      "min": 0,
+      "max": 1
+    }
+  }
+}

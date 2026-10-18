@@ -271,7 +271,7 @@ def test_crops_are_rendered_from_the_pdf(tmp_path):
 
 
 def test_typographic_macros_are_dropped_before_indexing():
-    """`\operatorname{P}(A)` and `P(A)` render alike; only one is searchable."""
+    r"""`\operatorname{P}(A)` and `P(A)` render alike; only one is searchable."""
     from file_agent.parsers.formula_enrichment import simplify_latex
 
     assert simplify_latex(r"\operatorname { P } ( A \mid B )") == r"P ( A \mid B )"

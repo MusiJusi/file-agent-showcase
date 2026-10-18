@@ -7,17 +7,14 @@ feat: ..., fix: ..., test: ..., docs: ..., chore: ...
 <!-- Briefly explain what changes and why. -->
 
 
-## Related issue
-<!-- Keep the relevant line and remove the other one. -->
-Closes #      <!-- Closes the issue when the PR is merged. -->
-Part of #     <!-- Links a larger issue without closing it. -->
+## Related issue (optional)
+<!-- Link an issue if applicable. Use Closes #N when completing it. -->
 
 ## Verification
 <!-- Add commands, steps, or screenshots that let a reviewer verify the change. -->
 - [ ]
 
 ## Checklist
-- [ ] A related issue is linked with `Closes #N` or `Part of #N`
 - [ ] Work was completed on a separate branch, not directly on `main`
 - [ ] `ruff check` and `ruff format --check` pass locally
 - [ ] `pytest` passes locally
