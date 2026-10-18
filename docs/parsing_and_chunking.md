@@ -360,7 +360,7 @@ The corpus contains two genuine two-column arXiv papers, and Docling's layout
 model orders both correctly — which is the point: the repair is a safety net
 for the case where the model fails, and on documents where it does not fail
 the guard never triggers. Its behaviour when it *is* needed is pinned by
-`tests/test_docling_postprocess.py`.
+`tests/parsers/test_docling_postprocess.py`.
 
 **Automatic numbering matches what the file declares.** Across the four DOCX
 of the corpus 350 paragraphs carry a `numId`; the counters reproduce the
