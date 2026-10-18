@@ -1,117 +1,143 @@
-# File Agent Pipeline
+# File Agent
 
-RAG pipeline for answering questions about documents:
+**Ask questions across documents. Follow the evidence.**
 
-- parse PDF, DOCX, Markdown, TXT, HTML, XLSX, and PPTX;
-- split documents into chunks;
-- retrieve relevant chunks with LanceDB;
-- generate an answer with an OpenAI-compatible LLM.
+[![CI](https://github.com/MusiJusi/file-agent-showcase/actions/workflows/ci.yml/badge.svg)](https://github.com/MusiJusi/file-agent-showcase/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![LangGraph](https://img.shields.io/badge/Agent-LangGraph-0F766E)
+![Retrieval](https://img.shields.io/badge/Retrieval-hybrid-334155)
 
-Every format is parsed into typed blocks (headings with levels, paragraphs,
-lists, Markdown tables, figures, code): PDF via Docling, DOCX via python-docx,
-PPTX/XLSX/HTML/Markdown/TXT with dedicated structure-aware parsers. Chunks are
-section-coherent, prefixed with their heading path and budgeted in the
-retrieval encoder's tokens (Qwen3-Embedding-0.6B by default). Scanned PDF pages are detected
-per page and transcribed by the multimodal chat model (Qwen3.5); figures in
-PDF/DOCX/PPTX are described by the same model. Design and evaluation results:
-[docs/parsing_and_chunking.md](docs/parsing_and_chunking.md).
+A document QA application with a LangGraph tool agent, structure-aware parsing,
+hybrid retrieval, and answers backed by source passages. Upload files to a
+Streamlit chat, ask a question, and inspect the evidence used in the answer.
 
-Retrieval is hybrid (BM25 over a lemmatised Russian view + Qwen3 dense,
-reciprocal-rank fusion), optionally widened with model-written formulations of
-the question (multi-query / HyDE), re-scored by Qwen3-Reranker-0.6B and cut to
-distinct passages. Stages, switches, the retrieval-level benchmark and an audit
-of the judge: [docs/retrieval.md](docs/retrieval.md).
+[Quick start](#quick-start) · [Architecture](docs/architecture.md) ·
+[Evaluation](docs/evaluation.md) · [Examples](examples/README.md) ·
+[Documentation](docs/README.md)
 
-## Agent layer
+![File Agent architecture: structured ingestion, hybrid retrieval, document tools, and grounded answers](docs/assets/architecture.svg)
 
-The same parsing, chunking, and retrieval pipeline can be used in two modes:
+## What it does
 
-- `RAG_MODE=standard` performs one retrieval pass and generates an answer;
-- `RAG_MODE=tool_agent` runs a bounded LangGraph loop with native LLM tool calls.
+| Capability | Implementation |
+| --- | --- |
+| Understand document structure | Dedicated parsers for PDF, DOCX, PPTX, XLSX, HTML, Markdown, and TXT |
+| Find relevant evidence | BM25 + Qwen3 dense embeddings, reciprocal rank fusion, optional Qwen3 reranking |
+| Answer multi-step questions | A bounded LangGraph loop with 15 read-only tools and compact conversation memory |
+| Work with tables precisely | Exact row lookup, full-table aggregation, column comparison, and decimal arithmetic |
+| Read visual content | Per-page PDF OCR, figure descriptions, and on-demand PDF visual analysis |
+| Keep answers inspectable | File, page, slide, and sheet metadata propagated to answer sources |
+| Run reproducible experiments | Hugging Face and DocBench runners, checkpoints, manifests, and an LLM judge |
 
-The tool agent can search and open passages, inspect document metadata and
-outlines, count literal occurrences over a complete document, read a whole
-document or a specific section/page/slide/sheet, inspect and aggregate tables,
-compare columns across tables, perform deterministic arithmetic, and analyze a
-PDF page or figure with the configured VLM. Tool observations are returned as
-normal `RAGResponse.sources`, so the UI and dataset exporters preserve the
-evidence used for the answer.
+Two execution modes share the same ingestion and retrieval layers:
+`tool_agent` selects document tools as needed; `standard` retrieves once and
+generates an answer. The example configuration selects the agent.
 
-For evaluation runs that require document evidence, the agent now routes the
-first call by question type: metadata/count, table, visual, location, or semantic
-search. Table row lookups and averages are deterministic, metadata reports both
-raw and content-level visual counts, and multi-document turns require independent
-evidence from every named file. Long tool traces are compacted before they reach
-the model while full source passages remain available in `RAGResponse.sources`.
+<details>
+<summary>Application preview — the actual Streamlit welcome screen</summary>
 
-The Streamlit application provides multiple persistent chats for the current
-set of uploaded documents. Conversation memory keeps only compact user/final
-answer pairs; tool traces are scoped to the active turn. Configure the loop with
-`RAG_MAX_TOOL_ROUNDS`, `RAG_HISTORY_TURNS`, and `RAG_MAX_CONTEXT_TOKENS` in `.env`.
-The context budget defaults to 90,000 estimated input tokens, leaving headroom for
-the answer on a 131k model. The selected LLM endpoint must support OpenAI-compatible
-native tool calling in agent mode.
+![File Agent welcome screen with document upload and getting-started instructions](docs/assets/app.png)
 
-The Hugging Face generator supports reproducible `standard`/`tool_agent` runs
-with per-row checkpoints and exported tool/token/timing diagnostics. The local
-DocBench runner parses and indexes each PDF once for all of its questions,
-continues past isolated failures, and writes judge-ready JSONL plus
-Parquet/Hugging Face artifacts. See
-[docs/hf_dataset_generation.md](docs/hf_dataset_generation.md) and
-[docs/docbench_generation.md](docs/docbench_generation.md).
+Captured locally with the checked-in theme. No model output is simulated.
 
-## Setup
+</details>
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+## Quick start
+
+Python **3.12 is recommended**. Install [uv](https://docs.astral.sh/uv/), then:
 
 ```bash
-uv sync
+git clone https://github.com/MusiJusi/file-agent-showcase.git
+cd file-agent-showcase
+uv sync --python 3.12 --frozen
+```
+
+Create a local configuration:
+
+```bash
+# macOS / Linux
 cp .env.example .env
 ```
 
-Configure the LLM backend in `.env`.
-
-To run the agent instead of the standard RAG path:
-
-```env
-RAG_MODE=tool_agent
-RAG_MAX_TOOL_ROUNDS=4
-RAG_HISTORY_TURNS=6
-RAG_MAX_CONTEXT_TOKENS=90000
+```powershell
+# Windows PowerShell
+Copy-Item .env.example .env
 ```
 
-## Run the application
+The example uses an existing OpenAI-compatible endpoint serving Qwen3.5-27B.
+Adjust these values to match your server:
+
+```dotenv
+LLM_BACKEND=local
+LOCAL_LLM_BASE_URL=http://127.0.0.1:18000/v1
+LOCAL_LLM_MODEL=Qwen/Qwen3.5-27B
+RAG_MODE=tool_agent
+```
+
+Then start the application:
 
 ```bash
 uv run streamlit run app.py
 ```
 
-Local inference setup: [docs/local_inference.md](docs/local_inference.md).
+Open **http://localhost:8501**, upload the fictional documents in
+[`examples/`](examples/README.md), and try:
 
-## Tracing (OpenTelemetry, Jaeger, and Langfuse)
+- “What was North's revenue growth from Q1 to Q2?”
+- “Which regions exceeded their quarterly target?”
+- “What service credit applies if availability is 99.3%?”
 
-The pipeline is instrumented with OpenTelemetry (`src/file_agent/telemetry.py`).
-Spans are created in `parse_file`, `chunk_document`, `load_documents`,
-`index_documents`, `LanceDBRetriever.index`/`.search`, `answer_question_with_context`
-and `answer_indexed_documents`, and exported over OTLP/gRPC to Jaeger.
+The UI is in Russian; questions and answers can use the document's language.
+See [endpoint configuration](docs/local_inference.md) for native tool-calling
+requirements, cloud backends, and visual support.
 
-Run Jaeger locally:
+The first ingestion may download embedding, reranking, OCR, and layout models.
+Their inference runs locally; answer generation uses your configured endpoint.
+For text-only use, set `VLM_BACKEND=off`; set `RERANKER_MODEL=` to disable
+reranking. These choices change quality and resource use.
 
-```bash
-docker compose up -d jaeger
+## Evaluation snapshot
+
+An archived evaluation of **125 selected questions** with DeepSeek V4 Flash and
+evaluator version 2 produced:
+
+| Faithfulness | Answer correctness | Answer relevancy | Context precision | Context recall |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.8769 | 0.6141 | 0.8212 | 0.7493 | 0.8413 |
+
+These are mean LLM-judge scores on a 0–1 scale, not percentages of correct answers.
+Two of the original 127 questions were excluded for suspected reference-label
+errors. This is an archived answer-artifact result, not a fresh benchmark of every
+subsequent code change. The [evaluation note](docs/evaluation.md) records the
+protocol, exclusions, artifact fingerprint, and limitations; the
+[sanitized summary](docs/results/agent-v6-eval125.json) contains the source values.
+
+## Explore the code
+
+```text
+app.py                      Streamlit entry point
+src/file_agent/
+  agent_tools/              Search, navigation, tables, statistics, vision, prompts
+  benchmarks/               Hugging Face and DocBench generation
+  parsers/                  Format-aware document ingestion
+  llm/                      Answering-model interface and adapters
+  vlm/                      Visual-model interface and adapters
+  document.py               Shared Document / Block representation
+  pipeline.py               Parser selection and ingestion policy
+  chunking.py               Token-budgeted, structure-aware chunks
+  lancedb_retriever.py       Hybrid retrieval and reranking
+  rag.py / rag_core.py       Public orchestration and shared response primitives
+  rag_graph.py              Ingestion, QA, and tool-agent graphs
+eval_pipeline/              Independent LLM-as-judge evaluator
+tests/                      Tests grouped by subsystem
+docs/                       Architecture, guides, and research notes
+examples/                   Fictional documents and verifiable questions
 ```
 
-The UI is available at http://localhost:16686 (service `file-agent-pipeline`).
-
-Spans are sent to `localhost:4317` by default. Override the endpoint with the
-`OTEL_EXPORTER_OTLP_ENDPOINT` environment variable (see `.env.example`).
-
-Langfuse export is optional. Set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`,
-and `LANGFUSE_BASE_URL` together to send the same trace tree through Langfuse's
-OTLP/HTTP endpoint. Leaving all three blank disables that exporter.
-
-If Jaeger isn't running, `configure_telemetry()` still works — spans are sent
-in the background via `BatchSpanProcessor` and simply won't arrive anywhere.
+The original `generate_hf_dataset.py` / `generate_docbench.py` commands and
+`file_agent.hf_*` / `file_agent.docbench_*` imports remain compatible.
+New code uses `file_agent.benchmarks`.
+See [architecture](docs/architecture.md) for the contracts between layers.
 
 ## Development
 
@@ -119,4 +145,24 @@ in the background via `BatchSpanProcessor` and simply won't arrive anywhere.
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+
+# The evaluator has its own dependency environment.
+cd eval_pipeline
+uv sync --python 3.12 --frozen
+uv run pytest tests
 ```
+
+Tests fake LLM/VLM requests and use small, generated document fixtures.
+[CI](.github/workflows/ci.yml) checks the application and evaluator separately.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
+
+[Docker and tracing](docs/deployment.md) are available for containerized use and
+OpenTelemetry/Jaeger inspection.
+
+## Project background
+
+This is a portfolio edition of a team document-QA project. The shared foundation
+provides document parsing, chunking, and retrieval. This edition presents the
+LangGraph agent, evidence-aware tools, generation runners, and evaluation
+improvements developed on top of that foundation. See
+[project background](docs/project_background.md) for scope and attribution.

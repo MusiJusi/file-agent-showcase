@@ -7,7 +7,7 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-main = import_module("file_agent.hf_cli").main
+main = import_module("file_agent.benchmarks.hf.cli").main
 
 
 if __name__ == "__main__":

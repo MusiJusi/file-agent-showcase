@@ -5,28 +5,61 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  application:
+    name: Application / Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.13", "3.14"]
+        # The Linux CUDA 12.4 lock has wheels through Python 3.13.
+        python-version: ["3.12", "3.13"]
+    env:
+      PYTHON_DOTENV_DISABLED: "1"
+      RAG_MODE: standard
+      RERANKER_MODEL: ""
+      MULTI_QUERY: "off"
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Ruff check
+      - uses: astral-sh/setup-uv@v3
+      - name: Install locked dependencies
+        run: uv sync --frozen
+      - name: Lint
         run: uv run ruff check .
-
-      - name: Ruff format check
+      - name: Check formatting
         run: uv run ruff format --check .
-
-      - name: Run tests
+      - name: Test application
         run: uv run pytest
+
+  evaluator:
+    name: Evaluator / Python 3.12
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: eval_pipeline
+    env:
+      RAGAS_DO_NOT_TRACK: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+      - name: Install locked dependencies
+        run: uv sync --frozen
+      - name: Lint
+        run: uv run ruff check .
+      - name: Check formatting
+        run: uv run ruff format --check .
+      - name: Test evaluator
+        run: uv run pytest tests

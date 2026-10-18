@@ -2,7 +2,7 @@
 name: Task
 about: A feature, improvement, or infrastructure task
 title: ""
-labels: ["task"]
+labels: []
 assignees: []
 ---
 
@@ -11,7 +11,7 @@ assignees: []
 
 
 ## Area
-<!-- Apply the relevant label: parser / retrieval / generation / evaluation / backend / frontend / devops. -->
+<!-- Parser / retrieval / agent / generation / evaluation / interface / deployment. -->
 
 
 ## Acceptance criteria

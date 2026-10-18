@@ -1,61 +1,33 @@
 services:
-  jaeger:
-    image: jaegertracing/all-in-one:1.60
-    container_name: jaeger
-    user: root
-    network_mode: host
-    restart: unless-stopped
-    environment:
-      - SPAN_STORAGE_TYPE=badger
-      - BADGER_EPHEMERAL=false
-      - BADGER_DIRECTORY_VALUE=/badger/data
-      - BADGER_DIRECTORY_KEY=/badger/key
-    volumes:
-      - jaeger_data:/badger
-
-  vllm:
-    image: vllm/vllm-openai:v0.7.3
-    container_name: file-agent-vllm
-    network_mode: host
-    restart: unless-stopped
-    ipc: host
-    environment:
-      - VLLM_USE_V1=0
-      - VLLM_ATTENTION_BACKEND=XFORMERS
-    command:
-      - --model
-      - Qwen/Qwen2.5-7B-Instruct
-      - --dtype
-      - half
-      - --max-model-len
-      - "8192"
-      - --gpu-memory-utilization
-      - "0.90"
-      - --enforce-eager
-    volumes:
-      - /mnt/storage-1/file-agent-pipe/huggingface/vllm:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["0"]
-              capabilities: [gpu]
-
   app:
     build: .
-    container_name: file-agent-app
-    network_mode: host
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      LOCAL_LLM_BASE_URL: ${DOCKER_LLM_BASE_URL:-http://host.docker.internal:18000/v1}
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4317
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${STREAMLIT_PORT:-8501}:8501"
     volumes:
-      - /mnt/storage-1/file-agent-pipe/huggingface/pipeline:/root/.cache/huggingface
-      - /mnt/storage-1/file-agent-pipe/easyocr:/root/.EasyOCR
-      - /mnt/storage-1/file-agent-pipe/logs/app:/app/logs
+      - pipeline_models:/root/.cache/huggingface
+      - ocr_models:/root/.EasyOCR
+      - application_logs:/app/logs
     depends_on:
-      - vllm
       - jaeger
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4317:4317"
+
 volumes:
-  jaeger_data:
+  pipeline_models:
+  ocr_models:
+  application_logs:

@@ -1,5 +1,10 @@
 # Parsing, chunking and OCR/VLM: design and evaluation
 
+> Shared-baseline research note. Version labels and results below describe the
+> original ingestion experiments, not the final 125-question agent evaluation.
+> See [architecture](architecture.md) and [evaluation](evaluation.md) for the
+> portfolio edition's module map and archived result.
+
 This document describes the structured ingestion pipeline (default since the
 `feat/parsing-chunking` branch), the fallbacks that keep the previous behaviour
 available, and how the changes were measured with the project's LLM-as-judge
@@ -355,7 +360,7 @@ The corpus contains two genuine two-column arXiv papers, and Docling's layout
 model orders both correctly — which is the point: the repair is a safety net
 for the case where the model fails, and on documents where it does not fail
 the guard never triggers. Its behaviour when it *is* needed is pinned by
-`tests/test_docling_postprocess.py`.
+`tests/parsers/test_docling_postprocess.py`.
 
 **Automatic numbering matches what the file declares.** Across the four DOCX
 of the corpus 350 paragraphs carry a `numId`; the counters reproduce the

@@ -1,56 +1,50 @@
 # Contributing
 
-This document summarizes the collaboration rules for `file-agent-pipeline`.
+Use Python 3.12 and the checked-in lockfile:
+
+```bash
+uv sync --python 3.12 --frozen
+```
 
 ## Workflow
 
-Use one issue, one branch, and one pull request for each change.
+Create a focused branch from `main`, make a small change, and open a pull request
+with the motivation and verification steps. Issues are useful for larger changes
+but are not required for documentation fixes.
 
-1. Create an issue from the task or bug template and apply the relevant area label (`parser`, `retrieval`, `generation`, `evaluation`, `backend`, `frontend`, or `devops`).
-2. Create a branch from the latest `main`.
-3. Make small, focused commits.
-4. Open a pull request. Add `Closes #N` when the PR completes the issue, or `Part of #N` when it is only one part of a larger task.
-5. Merge after CI passes and the PR has at least one approval.
+Prefer descriptive commits such as `docs: clarify local setup` or
+`refactor: group table tools`. CI should pass before merging.
 
-Do not push directly to `main`.
+## Architecture
 
-## Branches
+Read [the architecture map](docs/architecture.md) before changing layer boundaries.
+Keep parsing, retrieval, model adapters, and answering separate. Preserve source
+metadata through every tool result used as answer evidence.
 
-Use `<type>/<short-description>`, for example:
+- Add tools to `src/file_agent/agent_tools/` and register them in `DOCUMENT_TOOLS`.
+- Put generation adapters in `src/file_agent/benchmarks/`.
+- Keep provider-specific settings in the LLM/VLM factories and environment.
+- Preserve the documented CLI commands and legacy import aliases.
+- Add behavior tests under the corresponding `tests/` subsystem.
+- Use fake LLM/VLM clients in tests; do not call real model endpoints.
 
-- `feature/pdf-parser`
-- `fix/xlsx-empty-sheet`
-- `chore/setup-ci`
+## Checks
 
-## Commits
+```bash
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
 
-Prefer Conventional Commits:
+cd eval_pipeline
+uv sync --python 3.12 --frozen
+uv run pytest tests
+uv run ruff check .
+uv run ruff format --check .
+```
 
-- `feat:` for new functionality;
-- `fix:` for bug fixes;
-- `test:` for test changes;
-- `docs:` for documentation;
-- `ci:` for CI changes;
-- `chore:` for infrastructure, dependencies, and configuration.
+The evaluator has its own dependency environment. Run its tests from
+`eval_pipeline/`, not as part of the application's pytest invocation.
 
-Keep commits small and focused on one purpose.
-
-## Pull requests and issues
-
-Put the issue reference in the pull request description:
-
-- `Closes #N` closes the issue when the PR is merged. `Fixes` and `Resolves` are equivalent.
-- `Part of #N` links the issue without closing it.
-
-Do not duplicate these keywords in commit messages.
-
-## Reviews
-
-- Authors must not merge their own PR without approval.
-- Keep PRs small enough to review effectively.
-- Keep review feedback and discussion in the PR or linked issue.
-
-## Secrets
-
-- Never commit `.env`, API keys, or folder identifiers.
-- Commit only `.env.example` with placeholder values.
+Update examples and documentation when changing configuration or commands.
+Keep credentials, source documents, model caches, generated answers, and raw judge
+traces out of Git. Use synthetic documents and placeholder credentials in examples.
