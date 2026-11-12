@@ -103,7 +103,7 @@ evaluator version 2 produced:
 
 | Faithfulness | Answer correctness | Answer relevancy | Context precision | Context recall |
 | ---: | ---: | ---: | ---: | ---: |
-| 0.8769 | 0.6141 | 0.8212 | 0.7493 | 0.8413 |
+| 0.927 | 0.634 | 0.855 | 0.814 | 0.921 |
 
 These are mean LLM-judge scores on a 0–1 scale, not percentages of correct answers.
 Two of the original 127 questions were excluded for suspected reference-label
