@@ -24,7 +24,7 @@ This document describes the structured ingestion pipeline (default since the
 `feat/parsing-chunking` branch), the fallbacks that keep the previous behaviour
 available, and how the changes were measured with the project's LLM-as-judge
 (`eval_pipeline`, ragas metrics) on the team dataset
-`sandrik1271/RAG-QA-Dataset` (127 questions, 21 documents, 7 formats).
+`sandrik1271/RAG-QA-Dataset` (21 documents, 7 formats).
 
 ## 1. Why the previous ingestion lost accuracy
 
@@ -631,8 +631,8 @@ Every one of these was observed on the project's own corpus, not imagined:
 
   The footer was the default until it was measured. It is a claim about
   document metadata, and no retrieved passage supports it, so the judge
-  counts it as unsupported: in the v4 run 126 of 127 answers carried it and
-  averaged 0.845 faithfulness, while the single answer without it scored
+  counts it as unsupported: in the v4 run answers with the footer
+  averaged 0.845 faithfulness, while the answer without it scored
   1.0. Worse, `answer_correctness` runs in recall mode over claims — an
   answer that repeated the reference word for word still scored 0 when the
   only claims it added (file name, page number) were absent from the
@@ -657,30 +657,32 @@ Every one of these was observed on the project's own corpus, not imagined:
 Setup: `mla-yac-a100-5`, Qwen3.5-27B (vLLM, `enable_thinking=false`,
 temperature 0, top-k 5) both as the answering model and as the judge
 (`JUDGE_MODEL=Qwen/Qwen3.5-27B`, thinking disabled), dataset
-`sandrik1271/RAG-QA-Dataset` train split (127 rows), ragas metrics from
+`sandrik1271/RAG-QA-Dataset` train split, ragas metrics from
 `eval_pipeline`. Rows the pipeline could not process count as 0.
 
 ### 3.1 Runs
 
+Experiment labels below use shortened names.
+
 | Run | What it is |
 |---|---|
-| `pc-baseline-rag-127` | Code before this branch: Docling for PDF/DOCX with the pypdfium backend, flat PPTX/XLSX/HTML/TXT parsers, original chunker, `paraphrase-multilingual-MiniLM-L12-v2` (128-token window), original prompt. 5 rows could not be processed (the original chunker never finishes on `Курс лекций Основы философии.docx`; recorded as failures after a 240 s timeout). |
-| `pc-structured-rag-127` (v2) | Structured parsers + structured chunker + `bge-m3` + VLM figure descriptions and VLM page OCR through the chat model + QA prompt v2. |
-| `pc-structured-v4-127` (v4) | v2 + Docling `docling-parse` backend with ACCURATE TableFormer (row labels of financial tables recovered) + cross-encoder reranking (`bge-reranker-v2-m3` over the top-20 hybrid hits) + document-diverse top-k + spreadsheet profile blocks + prompt rule for comparison/"does it mention" questions. |
-| `pc-structured-v4-norerank-127` | v4 without the reranker (ablation). Note: only one ingestion process fits next to vLLM on the shared A100 (~8 GB free); a second concurrent generation run fails with CUDA OOM. |
-| `pc-structured-v4-agent-127` | v4 ingestion answered by the multi-step agent. Measured from the separate `feat/agent` branch: this branch is the shared baseline and carries no agent, so the row is kept as evidence about the ingestion, not as a feature of it. |
-| `pc-v4-nocite-127` | The v4 answers with the `Источники: …` footer stripped by a regular expression — identical answers, identical contexts, so the difference isolates what the footer costs in the judge's eyes. |
-| `pc-v5-rag-127` (v5, **default configuration**) | v4 + OCR `auto` (validated VLM transcripts, concurrent, EasyOCR per-page fallback) + spreadsheet fragment merging and workbook overview + table row records + hyphenation repair + document-scaled figure budget + QA prompt v3 (no source footer). |
-| `pc-v6-concise-127` | v5 + QA prompt v4 (answer the question and nothing beside it) and the late fixes: document title no longer taken from "Оглавление", VLM repair of degenerate PDF tables, automatic profiles for tables outside spreadsheets. |
-| `pc-v7-topk8-127` | v5 (default prompt) with `--top-k 8`: eight passages per question instead of five, for the multi-document questions whose context recall is the lowest of the set. |
+| `pc-baseline-rag` | Code before this branch: Docling for PDF/DOCX with the pypdfium backend, flat PPTX/XLSX/HTML/TXT parsers, original chunker, `paraphrase-multilingual-MiniLM-L12-v2` (128-token window), original prompt. 5 rows could not be processed (the original chunker never finishes on `Курс лекций Основы философии.docx`; recorded as failures after a 240 s timeout). |
+| `pc-structured-rag` (v2) | Structured parsers + structured chunker + `bge-m3` + VLM figure descriptions and VLM page OCR through the chat model + QA prompt v2. |
+| `pc-structured-v4` (v4) | v2 + Docling `docling-parse` backend with ACCURATE TableFormer (row labels of financial tables recovered) + cross-encoder reranking (`bge-reranker-v2-m3` over the top-20 hybrid hits) + document-diverse top-k + spreadsheet profile blocks + prompt rule for comparison/"does it mention" questions. |
+| `pc-structured-v4-norerank` | v4 without the reranker (ablation). Note: only one ingestion process fits next to vLLM on the shared A100 (~8 GB free); a second concurrent generation run fails with CUDA OOM. |
+| `pc-structured-v4-agent` | v4 ingestion answered by the multi-step agent. Measured from the separate `feat/agent` branch: this branch is the shared baseline and carries no agent, so the row is kept as evidence about the ingestion, not as a feature of it. |
+| `pc-v4-nocite` | The v4 answers with the `Источники: …` footer stripped by a regular expression — identical answers, identical contexts, so the difference isolates what the footer costs in the judge's eyes. |
+| `pc-v5-rag` (v5, **default configuration**) | v4 + OCR `auto` (validated VLM transcripts, concurrent, EasyOCR per-page fallback) + spreadsheet fragment merging and workbook overview + table row records + hyphenation repair + document-scaled figure budget + QA prompt v3 (no source footer). |
+| `pc-v6-concise` | v5 + QA prompt v4 (answer the question and nothing beside it) and the late fixes: document title no longer taken from "Оглавление", VLM repair of degenerate PDF tables, automatic profiles for tables outside spreadsheets. |
+| `pc-v7-topk8` | v5 (default prompt) with `--top-k 8`: eight passages per question instead of five, for the multi-document questions whose context recall is the lowest of the set. |
 | `pc-v5-rejudge` | The v5 run judged a second time, unchanged, to measure how much of a difference between runs is the judge's own variance. |
-| `pc-v8-parsing3-127` | v5 defaults plus the third round of parsing work: formula/code enrichment for PDF, DOCX footnotes, text frames, nested tables and real list numbers, HTML merged cells, and the two-column reading-order repair. (Hyperlink targets landed after the run started and are the one item it does not cover.) |
-| `pc-v9-vlmenrich-127` | v8 with formulas read by the serving model instead of Docling's, plus the chunking fixes the ingestion audit produced (abbreviated headers on wide tables, no contentless chunks, summaries trimmed to one chunk). |
-| `pc-v10-enrich-fixes-127` | v9 with the two corrections its own numbers demanded: an empty heading is dropped only when the document *repeats* it, and enriched formulas are stored without their typesetting macros. |
-| `pc-v11-noenrich-127` | v10 with `PDF_ENRICHMENT=off` — the control that prices what the formulas cost this dataset. |
-| `pc-v12-formula-context-127` (**current default**) | v10 with formulas kept out of the embedded chunk text (`FORMULA_INDEXING=context`), Word equations read as LaTeX, and the enrichment batch sized from free GPU memory. |
-| `pc-v13-final-127` | The same code as v12, run a second time (and populating the new page-OCR cache): the pair measures how much this table moves when nothing changes. |
-| `pc-v14-inline-127` (**current default**) | v12 with `FORMULA_INDEXING=inline`, the value the retrieval A/B chose. Confirms the final configuration end to end; the page-OCR cache makes its scanned-deck answers identical to v13's. |
+| `pc-v8-parsing3` | v5 defaults plus the third round of parsing work: formula/code enrichment for PDF, DOCX footnotes, text frames, nested tables and real list numbers, HTML merged cells, and the two-column reading-order repair. (Hyperlink targets landed after the run started and are the one item it does not cover.) |
+| `pc-v9-vlmenrich` | v8 with formulas read by the serving model instead of Docling's, plus the chunking fixes the ingestion audit produced (abbreviated headers on wide tables, no contentless chunks, summaries trimmed to one chunk). |
+| `pc-v10-enrich-fixes` | v9 with the two corrections its own numbers demanded: an empty heading is dropped only when the document *repeats* it, and enriched formulas are stored without their typesetting macros. |
+| `pc-v11-noenrich` | v10 with `PDF_ENRICHMENT=off` — the control that prices what the formulas cost this dataset. |
+| `pc-v12-formula-context` (**current default**) | v10 with formulas kept out of the embedded chunk text (`FORMULA_INDEXING=context`), Word equations read as LaTeX, and the enrichment batch sized from free GPU memory. |
+| `pc-v13-final` | The same code as v12, run a second time (and populating the new page-OCR cache): the pair measures how much this table moves when nothing changes. |
+| `pc-v14-inline` (**current default**) | v12 with `FORMULA_INDEXING=inline`, the value the retrieval A/B chose. Confirms the final configuration end to end; the page-OCR cache makes its scanned-deck answers identical to v13's. |
 
 ### 3.1a Auditing the ingestion itself (`audit_ingestion.py`)
 
@@ -715,35 +717,35 @@ this run does not OCR.
 
 ### 3.2 Results (ragas, judge = Qwen3.5-27B without thinking; pipeline failures scored 0)
 
-| Run | rows | failed | faithfulness | answer_correctness | answer_relevancy | context_precision | context_recall | avg s/question |
-|---|---|---|---|---|---|---|---|---|
-| baseline (old code) | 127 | 5 | 0.686 | 0.412 | 0.538 | 0.548 | 0.605 | — |
-| structured v2 | 127 | 0 | 0.847 | 0.593 | 0.738 | 0.715 | 0.786 | 22.5 |
-| structured v4 | 127 | 0 | 0.840 | 0.601 | 0.831 | 0.767 | 0.811 | 26.2 |
-| v4 + agent mode (from `feat/agent`) | 127 | 0 | 0.751 | 0.537 | 0.861 | 0.768 | 0.824 | 36.4 |
-| v4 without reranker | 127 | 0 | 0.837 | 0.604 | 0.855 | 0.705 | 0.827 | 25.0 |
-| v4, source footer stripped | 127 | 0 | 0.945 | 0.603 | 0.830 | 0.760 | 0.814 | — |
-| **v5 (default)** | 127 | 0 | **0.958** | 0.605 | 0.831 | 0.777 | **0.865** | **18.5** |
-| v5, judged a second time | 127 | 0 | 0.956 | 0.616 | 0.823 | 0.763 | 0.861 | — |
-| v5 + concise prompt (v4) | 127 | 0 | 0.941 | 0.554 | 0.823 | 0.772 | 0.854 | 10.8 |
-| v5 + top-k 8 | 127 | 0 | 0.962 | 0.598 | 0.846 | 0.744 | 0.875 | 14.1 |
-| v8 = v5 + parsing round 3 | 127 | 0 | 0.950 | 0.597 | 0.822 | 0.767 | 0.847 | 18.3 |
-| v9 = v8 + VLM enrichment + chunking fixes | 127 | 0 | 0.959 | 0.565 | 0.824 | 0.752 | 0.852 | 14.9 |
-| v10 = v9 + the two corrections | 127 | 0 | 0.954 | 0.577 | 0.823 | 0.762 | 0.843 | 15.1 |
-| v11 = v10 with enrichment off (control) | 127 | 0 | 0.965 | 0.592 | 0.823 | 0.762 | 0.852 | 13.3 |
-| v12 = v10 + formulas in context + Word equations | 127 | 0 | 0.958 | 0.584 | 0.832 | 0.755 | 0.844 | 13.3 |
-| v13 = v12 + OCR page cache (same code, second sample) | 127 | 0 | 0.952 | 0.568 | 0.824 | 0.751 | 0.843 | 13.4 |
-| **v14 = v12 with formulas indexed (current default)** | 127 | 0 | 0.957 | 0.578 | 0.823 | 0.754 | 0.848 | **12.4** |
-| v15 = v14 + retrieval branch (lemmatised BM25, distinct passages, HyDE multi-query; see [retrieval.md](retrieval.md)) | 127 | 0 | 0.956 | 0.585 | 0.844 | 0.752 | 0.876 | 13.3 |
+| Run | failed | faithfulness | answer_correctness | answer_relevancy | context_precision | context_recall | avg s/question |
+|---|---|---|---|---|---|---|---|
+| baseline (old code) | 5 | 0.686 | 0.412 | 0.538 | 0.548 | 0.605 | — |
+| structured v2 | 0 | 0.847 | 0.593 | 0.738 | 0.715 | 0.786 | 22.5 |
+| structured v4 | 0 | 0.840 | 0.601 | 0.831 | 0.767 | 0.811 | 26.2 |
+| v4 + agent mode (from `feat/agent`) | 0 | 0.751 | 0.537 | 0.861 | 0.768 | 0.824 | 36.4 |
+| v4 without reranker | 0 | 0.837 | 0.604 | 0.855 | 0.705 | 0.827 | 25.0 |
+| v4, source footer stripped | 0 | 0.945 | 0.603 | 0.830 | 0.760 | 0.814 | — |
+| **v5 (default)** | 0 | **0.958** | 0.605 | 0.831 | 0.777 | **0.865** | **18.5** |
+| v5, judged a second time | 0 | 0.956 | 0.616 | 0.823 | 0.763 | 0.861 | — |
+| v5 + concise prompt (v4) | 0 | 0.941 | 0.554 | 0.823 | 0.772 | 0.854 | 10.8 |
+| v5 + top-k 8 | 0 | 0.962 | 0.598 | 0.846 | 0.744 | 0.875 | 14.1 |
+| v8 = v5 + parsing round 3 | 0 | 0.950 | 0.597 | 0.822 | 0.767 | 0.847 | 18.3 |
+| v9 = v8 + VLM enrichment + chunking fixes | 0 | 0.959 | 0.565 | 0.824 | 0.752 | 0.852 | 14.9 |
+| v10 = v9 + the two corrections | 0 | 0.954 | 0.577 | 0.823 | 0.762 | 0.843 | 15.1 |
+| v11 = v10 with enrichment off (control) | 0 | 0.965 | 0.592 | 0.823 | 0.762 | 0.852 | 13.3 |
+| v12 = v10 + formulas in context + Word equations | 0 | 0.958 | 0.584 | 0.832 | 0.755 | 0.844 | 13.3 |
+| v13 = v12 + OCR page cache (same code, second sample) | 0 | 0.952 | 0.568 | 0.824 | 0.751 | 0.843 | 13.4 |
+| **v14 = v12 with formulas indexed (current default)** | 0 | 0.957 | 0.578 | 0.823 | 0.754 | 0.848 | **12.4** |
+| v15 = v14 + retrieval branch (lemmatised BM25, distinct passages, HyDE multi-query; see [retrieval.md](retrieval.md)) | 0 | 0.956 | 0.585 | 0.844 | 0.752 | 0.876 | 13.3 |
 
 Means over successfully processed rows only differ for the baseline (0.715 /
-0.429 / 0.560 / 0.570 / 0.630 over 122 rows).
+0.429 / 0.560 / 0.570 / 0.630).
 
 **The measurement floor of this table is ±0.016 on `answer_correctness`,
-measured.** v12 and v13 run the *same code* on the *same questions*: 118 of
-127 answers come out byte-identical, and the mean still moves 0.584 → 0.568.
+measured.** v12 and v13 run the *same code* on the *same questions*: most
+answers come out byte-identical, and the mean still moves 0.584 → 0.568.
 On the identical-answer rows alone it moves 0.580 → 0.566, so that part is the
-judge re-reading the same text in a new session; the nine answers that differ
+judge re-reading the same text in a new session; the answers that differ
 are the scanned A/B deck, whose 29 pages are transcribed afresh by a model
 that is not deterministic under batching. Any difference in this table smaller
 than that is not a result. (Both sources are now closed: page transcripts are
@@ -764,15 +766,15 @@ cannot separate them, while the retrieval measurement separates them cleanly
 (formula hit@5 1.000 against 0.567). When a design question is about
 *retrieval*, measure retrieval.
 
-**v10 against v8, read properly.** 108 of the 127 answers are *byte-identical*
+**v10 against v8, read properly.** Most answers are *byte-identical*
 to v8's, and on those rows the judge gives 0.607 → 0.605 — that is the
 measurement floor. Of the 19 answers that did change, two carry the whole
 difference: `q0029` and `q0030` ("does the lecture state a minimum sample
 size / give a formula for the confidence interval?") went 1.00 → 0.00 while
 saying the same thing, the new answer merely opening with "Нет," before the
 sentence v8 scored 1.00 for. Both keep faithfulness 1.00 and context recall
-1.00 in both runs. Two rows are 0.016 of a 127-row mean — about four fifths of
-the −0.020 gap — and faithfulness on the same 19 changed rows *rose*, 0.908 →
+1.00 in both runs. Those two rows account for 0.016 of the mean — about four
+fifths of the −0.020 gap — and faithfulness on the same 19 changed rows *rose*, 0.908 →
 0.950. Those two questions belong to `AB_test.pdf`, whose text comes from 29
 model-transcribed pages that differ between runs, so the wording change is not
 something the parser chose.
@@ -800,14 +802,14 @@ reference. Two properties of that protocol dominate the number:
   Judging the *same* run twice (`pc-v5-rejudge`) shows the effect is small in
   aggregate — mean per-row difference 0.017 for correctness, 0.008–0.015 for
   the other metrics, and no row moved by more than 0.5 — but between the v4
-  and the footer-stripped v4 judging four rows of 127 (3 %) flipped between
+  and the footer-stripped v4 judging a small share of rows (3 %) flipped between
   0 and 1. Single rows are therefore not evidence; only differences well
   above ±0.02 in the mean are.
 
 Faithfulness, context precision and context recall are stable and are what
 the v4 → v5 comparison rests on.
 
-The `pc-v4-nocite-127` row is a controlled experiment that separates the two
+The `pc-v4-nocite` row is a controlled experiment that separates the two
 kinds of change, because it holds the pipeline fixed and edits only the answer
 text:
 
@@ -825,7 +827,7 @@ is the expected result.** Formula/code enrichment, DOCX footnotes, text
 frames, nested tables and real list numbers, HTML merged cells and the
 column repair recover content that would otherwise be silently missing — 378
 formulas in one lecture, 9 footnotes, 4 text frames, the item numbers of the
-exam programme — but these 127 questions do not ask about that content, and
+exam programme — but the benchmark questions do not ask about that content, and
 the corpus contains no HTML at all. Per document, 26 of the 29 groups score
 *exactly* the same as in v5; the three that moved all involve `AB_test.pdf`,
 the only file whose text comes from 29 VLM-transcribed pages, and those
@@ -835,7 +837,7 @@ footnotes is a correctness bug that this dataset simply does not measure.
 
 Two settings were tried on top of v5 and neither is adopted:
 
-- **top-k 8 instead of 5** (`pc-v7-topk8-127`) buys 0.010 context recall for
+- **top-k 8 instead of 5** (`pc-v7-topk8`) buys 0.010 context recall for
   0.033 context precision, and answer correctness does not move (0.598 against
   0.605 and 0.616 in the two v5 judgings). The multi-document questions that
   motivated it are not short of passages — they need the *right* passage, which
@@ -844,7 +846,7 @@ Two settings were tried on top of v5 and neither is adopted:
 
 The zeros looked like a penalty for answering *too fully*, so prompt v4 was
 written to answer the question and nothing beside it, and measured
-(`pc-v6-concise-127`). It is a clear negative result: answers got 40 %
+(`pc-v6-concise`). It is a clear negative result: answers got 40 %
 shorter (667 → 398 characters on average) and twice as fast (18.5 → 10.8 s
 per question), and correctness **fell** by 0.05 (0.605 → 0.554) with
 faithfulness down 0.017. In recall mode the reference claims the answer
@@ -941,7 +943,7 @@ set.
 ```bash
 source ~/fa_env.sh                     # HF_HOME, PATH, PYTHONPATH (see docs/hf_dataset_generation.md)
 cd ~/file-agent-pipeline
-export RUN_NAME=structured-rag-127
+export RUN_NAME=structured-rag
 export RUN_DIR="$FILE_AGENT_STORAGE/runs/$RUN_NAME"
 uv run python generate_hf_dataset.py \
   --dataset-id sandrik1271/RAG-QA-Dataset --split train \

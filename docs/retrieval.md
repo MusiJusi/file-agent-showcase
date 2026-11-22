@@ -172,7 +172,7 @@ the judge's number, and the generation itself is not deterministic. For
 retrieval questions there is a direct instrument (`bench_retrieval.py` on the
 server, `~/bench_cache/`):
 
-* the 127 dataset questions, each searched over *its own* documents exactly
+* the benchmark questions, each searched over *its own* documents exactly
   as the pipeline does (parse and chunk cached, embeddings cached across
   configurations, so a configuration costs a minute);
 * the proxy for "did retrieval deliver the evidence": lemma recall of the
@@ -181,7 +181,7 @@ server, `~/bench_cache/`):
   `recall_best` is the best single passage, `recall_union` the union of the
   five, `hit@.5`/`hit@.7` the share of questions whose best passage covers at
   least half / 70 % of the reference. Questions whose reference is "нет
-  информации" (17 of 127) have no evidence to find and are excluded;
+  информации" have no evidence to find and are excluded;
 * validated against the judge on v14: Spearman 0.47 with `context_recall`;
   every question the proxy scores ≥ 0.7 the judge scores 1.0; questions it
   scores < 0.3 still average 0.73 with the judge, because references paraphrase
@@ -193,9 +193,9 @@ server, `~/bench_cache/`):
 
 ### 3.1 Per question over its own documents (what the evaluation pipeline does)
 
-These historical measurements predate the switch to Qwen. 110 questions with
-a content reference, top-5, reranker on
-(`BAAI/bge-reranker-v2-m3`), 2026-08-19. `s/q` is the search alone; the
+These historical measurements predate the switch to Qwen. The setup used
+questions with a content reference, top-5 retrieval, and the
+`BAAI/bge-reranker-v2-m3` reranker (2026-08-19). `s/q` is the search alone; the
 multi-query rows include the model call for a question not yet cached.
 
 | config | recall_best | recall_union | hit@.5 | hit@.7 | passages | chars | s/q |
@@ -288,7 +288,7 @@ deployment; `.env.example` ships it on.
 
 ### 3.3 Judged runs (ragas, judge = Qwen3.5-27B without thinking)
 
-Two runs, same 127 questions, same documents, same answering model; the
+Two runs, same questions, same documents, same answering model; the
 only difference is the retrieval configuration. Pipeline failures score 0
 (there were none). `s/q` is wall-clock per question over the run; v15's
 formulations came from the benchmark's cache, a cold question adds ~4 s.
@@ -352,7 +352,7 @@ configuration is never resumed under another; `RAG_PIPELINE_VERSION` moved to
 ## 5. Can the judge be trusted? An audit
 
 The question was asked directly — *are the judge's numbers real, or drawn?* —
-so it was answered in three ways on the v14 run (`pc-v14-inline-127`, trace
+so it was answered in three ways on the v14 run (`pc-v14-inline`, trace
 `judge_trace_log_20260818T155354827222Z.jsonl`).
 
 ### 5.1 The numbers are derivable from the judge's own recorded reasoning
@@ -366,11 +366,11 @@ score (`judge_recompute.py`, `ref_coverage.py` on the server):
 
 | Metric | reproduced from the trace |
 |---|---|
-| faithfulness = supported statements / statements | **127 / 127** |
-| answer_correctness = tp / (tp + fn) over claims (ragas `FactualCorrectness`, `mode="recall"`) | **127 / 127** |
-| context_recall = attributed reference sentences / sentences | **127 / 127** |
-| context_precision = average precision over the per-passage verdicts | **127 / 127** |
-| answer_relevancy | needs the embedding model; the generated questions it is computed from are logged for 127 / 127 |
+| faithfulness = supported statements / statements | **All checked rows** |
+| answer_correctness = tp / (tp + fn) over claims (ragas `FactualCorrectness`, `mode="recall"`) | **All checked rows** |
+| context_recall = attributed reference sentences / sentences | **All checked rows** |
+| context_precision = average precision over the per-passage verdicts | **All checked rows** |
+| answer_relevancy | needs the embedding model; the generated questions it is computed from are logged for every checked row |
 
 Nothing is drawn: every number is a deterministic function of a verdict the
 judge wrote down together with its reason, and anyone can rerun the check.

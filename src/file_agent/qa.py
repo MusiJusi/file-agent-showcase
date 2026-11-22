@@ -22,7 +22,7 @@ NO_CONTEXT_MESSAGE = "No relevant context was found in the document to answer th
 # the prompt still carry the provenance, and the UI shows the source chunks,
 # so nothing is lost by keeping it out of the answer text.
 # ``v4`` keeps the answer to the question that was asked and nothing beside
-# it. Measured against v3 on the 127-question set it is a trade, not a win:
+# it. Measured against v3 on the benchmark it is a trade, not a win:
 # answers are 40 % shorter and twice as fast (18.5 -> 10.8 s per question) but
 # correctness falls 0.605 -> 0.554, because a claim-level judge in recall mode
 # punishes the reference facts a short answer *misses* more than it rewards
