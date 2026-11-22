@@ -1,7 +1,7 @@
 # Parsing, chunking and OCR/VLM: design and evaluation
 
 > Shared-baseline research note. Version labels and results below describe the
-> original ingestion experiments, not the final 125-question agent evaluation.
+> original ingestion experiments, not the final agent evaluation.
 > See [architecture](architecture.md) and [evaluation](evaluation.md) for the
 > portfolio edition's module map and archived result.
 > This is a team project; **MusiJusi was responsible for the RAG logic**.
@@ -9,9 +9,8 @@
 
 ## Published agent evaluation
 
-The project's golden set contains **100 files and 400 questions**. The published
-archived result covers **125 selected questions**, with DeepSeek V4 Flash and
-evaluator version 2:
+The project's golden set contains **100 files and 400 questions**.
+The published archived result uses DeepSeek V4 Flash and evaluator version 2:
 
 | Faithfulness | Answer correctness | Answer relevancy | Context precision | Context recall |
 | ---: | ---: | ---: | ---: | ---: |

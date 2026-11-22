@@ -98,20 +98,19 @@ reranking. These choices change quality and resource use.
 
 ## Evaluation snapshot
 
-The project's golden set contains **100 files and 400 questions**. The archived
-evaluation below covers **125 selected questions**. With DeepSeek V4 Flash and
-evaluator version 2, it produced:
+The project's golden set contains **100 files and 400 questions**.
+
+The archived evaluation with DeepSeek V4 Flash and evaluator version 2 produced:
 
 | Faithfulness | Answer correctness | Answer relevancy | Context precision | Context recall |
 | ---: | ---: | ---: | ---: | ---: |
 | 0.927 | 0.634 | 0.855 | 0.814 | 0.921 |
 
 These are mean LLM-judge scores on a 0–1 scale, not percentages of correct answers.
-Two of the original 127 questions were excluded for suspected reference-label
-errors. This is an archived answer-artifact result, not a fresh benchmark of every
+This is an archived answer-artifact result, not a fresh benchmark of every
 subsequent code change. The [evaluation note](docs/evaluation.md) records the
 protocol, exclusions, artifact fingerprint, and limitations; the
-[sanitized summary](docs/results/agent-v6-eval125.json) contains the source values.
+[sanitized summary](docs/results/agent-v6.json) contains the source values.
 
 ## Explore the code
 

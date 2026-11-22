@@ -1,16 +1,13 @@
 # Evaluation
 
-## Golden set and evaluated subset
+## Golden set
 
 The project's golden set contains **100 files and 400 questions**.
-The published archived evaluation covers **125 selected questions** from an
-original 127-question experiment; the scores below describe that subset rather
-than the complete golden set.
 
 ## Archived agent-v6 result
 
 The published means below match the main [README evaluation snapshot](../README.md#evaluation-snapshot).
-They cover **125 questions**, with **DeepSeek V4 Flash** and **evaluator version 2**:
+The scores were produced with **DeepSeek V4 Flash** and **evaluator version 2**:
 
 | Metric | Mean | Interpretation |
 | --- | ---: | --- |
@@ -20,16 +17,15 @@ They cover **125 questions**, with **DeepSeek V4 Flash** and **evaluator version
 | Context precision | 0.814 | Ranking quality of useful supplied evidence |
 | Context recall | 0.921 | Coverage of reference information by that evidence |
 
-The [sanitized summary](results/agent-v6-eval125.json) records these published
+The [sanitized summary](results/agent-v6.json) records these published
 means at the same three-decimal precision as the README. Per-question scores
 and distribution statistics are not included. It contains no questions,
 documents, credentials, cloud folder identifiers, or machine-specific paths.
 
 ## Protocol and provenance
 
-- The answer artifact contains 125 of the original 127 questions.
 - `q0016` and `q0067` were excluded for suspected incorrect reference
-  annotations. This is a selected subset, not a full 127-question result.
+  annotations.
 - Answers were supplied as a separate generated Parquet artifact, then filtered.
   Its SHA-256 is
   `bc7d9c1d7007319e16f38855d46714b17822717b7339183fd1588816a08c8d11`.

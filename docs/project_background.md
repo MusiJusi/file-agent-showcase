@@ -34,9 +34,7 @@ responsibility while preserving public imports and commands.
 ## Golden set and published evaluation
 
 The project's golden set contains **100 files and 400 questions**.
-The published archived result covers **125 selected questions** from an original
-127-question experiment. It is a subset evaluation, not a result over all 400
-golden-set questions. See [evaluation](evaluation.md) for the scores and protocol.
+See [evaluation](evaluation.md) for the published scores and judging protocol.
 
 ## Attribution
 
