@@ -98,8 +98,9 @@ reranking. These choices change quality and resource use.
 
 ## Evaluation snapshot
 
-An archived evaluation of **125 selected questions** with DeepSeek V4 Flash and
-evaluator version 2 produced:
+The project's golden set contains **100 files and 400 questions**. The archived
+evaluation below covers **125 selected questions**. With DeepSeek V4 Flash and
+evaluator version 2, it produced:
 
 | Faithfulness | Answer correctness | Answer relevancy | Context precision | Context recall |
 | ---: | ---: | ---: | ---: | ---: |
@@ -161,8 +162,10 @@ OpenTelemetry/Jaeger inspection.
 
 ## Project background
 
-This is a portfolio edition of a team document-QA project. The shared foundation
-provides document parsing, chunking, and retrieval. This edition presents the
-LangGraph agent, evidence-aware tools, generation runners, and evaluation
-improvements developed on top of that foundation. See
-[project background](docs/project_background.md) for scope and attribution.
+This is a portfolio edition of a team document-QA project.
+**MusiJusi was responsible for the RAG logic**: retrieval orchestration, context
+assembly, grounded answer generation, and the LangGraph agent with its
+evidence-aware document tools. The shared codebase also provides document
+parsing, chunking, model adapters, and the Streamlit application. See
+[project background](docs/project_background.md) for RAG ownership and team
+attribution.

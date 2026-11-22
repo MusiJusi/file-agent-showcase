@@ -1,20 +1,29 @@
 # Evaluation
 
+## Golden set and evaluated subset
+
+The project's golden set contains **100 files and 400 questions**.
+The published archived evaluation covers **125 selected questions** from an
+original 127-question experiment; the scores below describe that subset rather
+than the complete golden set.
+
 ## Archived agent-v6 result
 
-The archived judge report contains five finite mean scores over **125 questions**:
+The published means below match the main [README evaluation snapshot](../README.md#evaluation-snapshot).
+They cover **125 questions**, with **DeepSeek V4 Flash** and **evaluator version 2**:
 
 | Metric | Mean | Interpretation |
 | --- | ---: | --- |
-| Faithfulness | 0.8769 | Support for answer claims in the supplied evidence |
-| Answer correctness | 0.6141 | Reference-based factual and semantic comparison |
-| Answer relevancy | 0.8212 | How closely an answer addresses the question |
-| Context precision | 0.7493 | Ranking quality of useful supplied evidence |
-| Context recall | 0.8413 | Coverage of reference information by that evidence |
+| Faithfulness | 0.927 | Support for answer claims in the supplied evidence |
+| Answer correctness | 0.634 | Reference-based factual and semantic comparison |
+| Answer relevancy | 0.855 | How closely an answer addresses the question |
+| Context precision | 0.814 | Ranking quality of useful supplied evidence |
+| Context recall | 0.921 | Coverage of reference information by that evidence |
 
-The [sanitized artifact](results/agent-v6-eval125.json) reproduces the aggregate
-report. It contains no questions, documents, credentials, cloud folder identifiers,
-or machine-specific paths.
+The [sanitized summary](results/agent-v6-eval125.json) records these published
+means at the same three-decimal precision as the README. Per-question scores
+and distribution statistics are not included. It contains no questions,
+documents, credentials, cloud folder identifiers, or machine-specific paths.
 
 ## Protocol and provenance
 
@@ -41,7 +50,7 @@ generation or paid judging was performed during this presentation refactor.
 ## How to read the scores
 
 These are graded LLM-judge measurements on a 0–1 scale.
-A correctness score of 0.6141 does **not** mean 61.41% of answers were classified
+A correctness score of 0.634 does **not** mean 63.4% of answers were classified
 as correct. Scores depend on the judge, references, evidence, and request policy.
 
 The report's automatic negative-example count was zero. This reflects its

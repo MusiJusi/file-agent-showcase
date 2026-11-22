@@ -4,6 +4,13 @@ The runner loads QA rows, downloads their referenced documents, generates answer
 and exports the exact evidence, tool calls, token counts, and timings used.
 Implementation: `src/file_agent/benchmarks/hf/`.
 
+## Golden set and evaluation scope
+
+The project's golden set contains **100 files and 400 questions**. Dataset
+selection and run limits determine which questions a generation run covers.
+The published archived metrics describe **125 selected questions**, not all
+400 questions; see [evaluation](evaluation.md) for the selection and protocol.
+
 ## Prepare
 
 Configure an answering endpoint using [the setup guide](local_inference.md).

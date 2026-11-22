@@ -3,6 +3,22 @@
 > Shared-baseline research note. Its experiment labels and judge scores belong
 > to the runs described below. See [evaluation](evaluation.md) for the separate
 > 125-question agent result and its protocol.
+> This is a team project; **MusiJusi was responsible for the RAG logic**.
+> See [project background](project_background.md) for attribution.
+
+## Published agent evaluation
+
+The project's golden set contains **100 files and 400 questions**. The published
+archived result covers **125 selected questions**, with DeepSeek V4 Flash and
+evaluator version 2:
+
+| Faithfulness | Answer correctness | Answer relevancy | Context precision | Context recall |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.927 | 0.634 | 0.855 | 0.814 | 0.921 |
+
+These mean scores match the main [README snapshot](../README.md#evaluation-snapshot)
+and [evaluation note](evaluation.md). The experiments below used separate
+artifacts and protocols; their measurements remain historical results.
 
 This is the companion to [parsing_and_chunking.md](parsing_and_chunking.md):
 that document ends where the chunks are indexed, this one starts there. It
@@ -174,7 +190,7 @@ server, `~/bench_cache/`):
   A/B on the same questions, where only the direction and size of a change
   matter, and its noise is zero.
 
-## 3. Results
+## 3. Historical retrieval results
 
 ### 3.1 Per question over its own documents (what the evaluation pipeline does)
 
