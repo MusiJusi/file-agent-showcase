@@ -3,6 +3,10 @@
 File Agent keeps ingestion, retrieval, tool execution, and model integration
 separate. Standard RAG and the agent share document objects and source metadata.
 
+**MusiJusi was responsible for the RAG logic**, including orchestration, context
+assembly, grounded answer generation, and the LangGraph agent and document tools.
+See [project background](project_background.md) for team attribution.
+
 ![Architecture](assets/architecture.svg)
 
 ## Data flow and contracts

@@ -11,8 +11,18 @@ Start with the [project overview](../README.md) or choose a guide.
 | How to try safe sample files | [Example documents](../examples/README.md) |
 | How to generate a Hugging Face run | [HF generation](hf_dataset_generation.md) |
 | How to run DocBench | [DocBench generation](docbench_generation.md) |
-| What came from the shared baseline | [Project background](project_background.md) |
+| Who owned the RAG logic and how the team contributed | [Project background and RAG ownership](project_background.md) |
 | How to make a change | [Contributing](../CONTRIBUTING.md) |
+
+## Project scope and evaluation
+
+File Agent was developed as a team project; **MusiJusi was responsible for the
+RAG logic**. See [project background](project_background.md) for the module map
+and attribution.
+
+The golden set contains **100 files and 400 questions**. The published metrics
+cover **125 selected questions**; use the [evaluation note](evaluation.md) and
+[main README snapshot](../README.md#evaluation-snapshot) for the scores and protocol.
 
 ## Research notes
 

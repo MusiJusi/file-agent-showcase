@@ -4,6 +4,22 @@
 > original ingestion experiments, not the final 125-question agent evaluation.
 > See [architecture](architecture.md) and [evaluation](evaluation.md) for the
 > portfolio edition's module map and archived result.
+> This is a team project; **MusiJusi was responsible for the RAG logic**.
+> See [project background](project_background.md) for attribution.
+
+## Published agent evaluation
+
+The project's golden set contains **100 files and 400 questions**. The published
+archived result covers **125 selected questions**, with DeepSeek V4 Flash and
+evaluator version 2:
+
+| Faithfulness | Answer correctness | Answer relevancy | Context precision | Context recall |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.927 | 0.634 | 0.855 | 0.814 | 0.921 |
+
+These mean scores match the main [README snapshot](../README.md#evaluation-snapshot)
+and [evaluation note](evaluation.md). The experiments below used separate
+artifacts and protocols; their measurements remain historical results.
 
 This document describes the structured ingestion pipeline (default since the
 `feat/parsing-chunking` branch), the fallbacks that keep the previous behaviour
@@ -637,7 +653,7 @@ Every one of these was observed on the project's own corpus, not imagined:
   smoke test went from ~20 min / 182k output tokens to ~2 min / 14k tokens
   with the same metric ranges.
 
-## 3. Evaluation
+## 3. Historical ingestion evaluation
 
 Setup: `mla-yac-a100-5`, Qwen3.5-27B (vLLM, `enable_thinking=false`,
 temperature 0, top-k 5) both as the answering model and as the judge
