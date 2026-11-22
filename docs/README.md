@@ -20,9 +20,9 @@ File Agent was developed as a team project; **MusiJusi was responsible for the
 RAG logic**. See [project background](project_background.md) for the module map
 and attribution.
 
-The golden set contains **100 files and 400 questions**. The published metrics
-cover **125 selected questions**; use the [evaluation note](evaluation.md) and
-[main README snapshot](../README.md#evaluation-snapshot) for the scores and protocol.
+The golden set contains **100 files and 400 questions**. Use the
+[evaluation note](evaluation.md) and [main README snapshot](../README.md#evaluation-snapshot)
+for the scores and protocol.
 
 ## Research notes
 

@@ -2,9 +2,7 @@
   "schema_version": 1,
   "description": "Published mean-score summary of the archived agent-v6 evaluation, aligned with the main README; not a new inference run.",
   "evaluator_version": "2",
-  "n_examples": 125,
   "n_negative_examples_detected": 0,
-  "n_answerable_examples_detected": 125,
   "excluded_records": [
     {
       "id": "q0016",

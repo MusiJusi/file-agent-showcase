@@ -2,15 +2,14 @@
 
 > Shared-baseline research note. Its experiment labels and judge scores belong
 > to the runs described below. See [evaluation](evaluation.md) for the separate
-> 125-question agent result and its protocol.
+> agent result and its protocol.
 > This is a team project; **MusiJusi was responsible for the RAG logic**.
 > See [project background](project_background.md) for attribution.
 
 ## Published agent evaluation
 
-The project's golden set contains **100 files and 400 questions**. The published
-archived result covers **125 selected questions**, with DeepSeek V4 Flash and
-evaluator version 2:
+The project's golden set contains **100 files and 400 questions**.
+The published archived result uses DeepSeek V4 Flash and evaluator version 2:
 
 | Faithfulness | Answer correctness | Answer relevancy | Context precision | Context recall |
 | ---: | ---: | ---: | ---: | ---: |

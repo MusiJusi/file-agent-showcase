@@ -8,8 +8,7 @@ Implementation: `src/file_agent/benchmarks/hf/`.
 
 The project's golden set contains **100 files and 400 questions**. Dataset
 selection and run limits determine which questions a generation run covers.
-The published archived metrics describe **125 selected questions**, not all
-400 questions; see [evaluation](evaluation.md) for the selection and protocol.
+See [evaluation](evaluation.md) for the published scores and judging protocol.
 
 ## Prepare
 
